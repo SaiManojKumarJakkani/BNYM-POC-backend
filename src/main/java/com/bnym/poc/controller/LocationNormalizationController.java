@@ -5,9 +5,12 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +39,8 @@ import com.bnym.poc.service.LocationNormalizationService;
 public class LocationNormalizationController {
 	@Autowired
 	LocationNormalizationService locationNormalizationService;
+	@Autowired
+	LocationStagingRepository locStagingRepo;
 	
 	@PostMapping("/uploaddetails")
 	public ResponseEntity uploadFile(@RequestBody MultipartFile file) throws IOException {
@@ -75,7 +80,11 @@ public class LocationNormalizationController {
     public ResponseEntity<List<LocationStaging>> getApproval(){
         return new ResponseEntity<>(locationNormalizationService.getAllApproval(), HttpStatus.OK);
 	}
-	
+	@PutMapping("/approveorrejectall/{status}")
+    public  ResponseEntity approveRejectAll(@RequestBody List<LocationStaging> locations,@PathVariable("status")String status){
+	    String message = locationNormalizationService.approveRejectAll(locations, status);
+        return ResponseEntity.status(HttpStatus.OK).body(new ResponseMessage(message));
+	}
     @PutMapping("/approveorreject/{status}")
 	public ResponseEntity approveReject(@RequestBody LocationStaging location,@PathVariable("status")String status){
        String message = locationNormalizationService.approveReject(location, status);
@@ -87,6 +96,13 @@ public class LocationNormalizationController {
         String message = locationNormalizationService.inApproval(data);
         return ResponseEntity.status(HttpStatus.OK).body(new ResponseMessage(message));
 
+    }
+    @GetMapping("/downloadFile")
+    public ResponseEntity<byte[]> downloadFile() throws Exception{
+    	return locationNormalizationService.downloadFile();
+    	//return locationNormalizationService.downloadFile();
+       // String message = "Sucess";
+       // return ResponseEntity.status(HttpStatus.OK).body(new ResponseMessage(message));
     }
 
 }

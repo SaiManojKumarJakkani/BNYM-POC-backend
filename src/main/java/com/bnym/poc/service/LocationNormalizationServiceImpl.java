@@ -1,22 +1,36 @@
 package com.bnym.poc.service;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import javax.activation.MimetypesFileTypeMap;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -25,7 +39,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
-
 
 import com.bnym.poc.model.LocationAudit;
 import com.bnym.poc.model.LocationMaster;
@@ -55,6 +68,31 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
         List<LocationStaging> approvalList = locStagingRepo.findByStatus("IN_APPROVAL");
         return approvalList;
 	}
+	@Override
+	public String approveRejectAll(List<LocationStaging> locations,String status){
+		
+    	LocationStaging locStaging = null;
+        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        Date date = new Date();
+        if(status.equals("approve"))
+        {	for(LocationStaging location:locations) {
+        	locStaging = locStagingRepo.findById(location.getId());
+        	locStagingRepo.updateStatus("APPROVED",date,null,location.getId());
+	        locAuditRepo.save(new LocationAudit(locStaging.getLocationName(),locStaging.getNormalizedLocation(),"APPROVED",location.getId()));
+        	locMasterRepo.save(new LocationMaster(locStaging.getId(),locStaging.getLocationName(),locStaging.getNormalizedLocation(),date));
+        }
+        	return "Sucessfully APPROVED the data!";
+        }
+        else
+        {	
+            for(LocationStaging location:locations) {
+        	locStaging = locStagingRepo.findById(location.getId());
+        	locStagingRepo.updateStatus("REJECTED",date,location.getRejectionNotes(),location.getId());
+	        locAuditRepo.save(new LocationAudit(locStaging.getLocationName(),locStaging.getNormalizedLocation(),"REJECTED",location.getId()));
+            }
+        	return "Sucessfully REJECTED the data!";
+        }  
+    }
 	
 	@Override
 	public String approveReject(LocationStaging location,String status){
@@ -205,5 +243,65 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
 	        }
 	        return workbook;
 	 }
+
+	public File createFile() throws Exception {
+    	List<LocationStaging>fileData =locStagingRepo.findAll();
+        //Create blank workbook
+        XSSFWorkbook workbook = new XSSFWorkbook();
+        
+        //Create a blank sheet
+        XSSFSheet spreadsheet = workbook.createSheet( " Employee Info ");
+
+        //Create row object
+        XSSFRow row;
+
+        //This data needs to be written (Object[])
+    	
+        Map < String, Object[] > empinfo = new TreeMap < String, Object[] >();
+        empinfo.put( "1", new Object[] {
+           "GSP_LOCATION_NAME", "NORMALIZED_LOCATION_NAME", "STATUS"});
+        int i=1;
+        for(LocationStaging l:fileData) {
+        	i++;
+        empinfo.put(""+i,new Object[] {
+        		l.getLocationName(),l.getNormalizedLocation(),l.getStatus()
+        });
+        }
+        //Iterate over data and write to sheet
+        Set < String > keyid = empinfo.keySet();
+        int rowid = 0;
+        for (String key : keyid) {
+            row = spreadsheet.createRow(rowid++);
+            Object [] objectArr = empinfo.get(key);
+            int cellid = 0;
+            
+            for (Object obj : objectArr){
+               Cell cell = row.createCell(cellid++);
+               cell.setCellValue((String)obj);
+            }
+         }
+    	File f= new File("Location_Normalization.xlsx");
+        FileOutputStream out = new FileOutputStream(f);    
+        workbook.write(out);
+        out.close();
+        System.out.println("Writesheet.xlsx written successfully");
+
+        return f;
+		
+	}
+	@Override
+    public ResponseEntity<byte[]> downloadFile() throws Exception{
+    	File f=createFile();
+        String path = "Location_Normalization.xlsx";
+        byte[] encoded = Files.readAllBytes(Paths.get(path));
+        if(f.exists()) {
+    	      return ResponseEntity.ok()
+    	          .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + f.getName() + "\"")
+    	          .contentType(MediaType.parseMediaType(new MimetypesFileTypeMap().getContentType(f)))
+    	          .body(encoded);  
+    	    }
+        f.deleteOnExit();
+    	return ResponseEntity.status(404).body(null);
+    }
 
 }
