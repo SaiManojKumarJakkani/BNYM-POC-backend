@@ -15,7 +15,7 @@ import javax.transaction.Transactional;
 @Repository
 public interface LocationStagingRepository extends JpaRepository<LocationStaging, Integer> {
 	LocationStaging findById(int id);
-	List<LocationStaging> findByLocationName(String location);
+	LocationStaging findByLocationName(String location);
 	
 	@Transactional
 	@Modifying

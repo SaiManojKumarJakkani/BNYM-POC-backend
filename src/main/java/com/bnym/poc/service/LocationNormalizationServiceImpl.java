@@ -57,17 +57,21 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
 	@Autowired
 	LocationMasterRepository locMasterRepo;
 	
+	//Getting all records from Location_Staging
 	@Override
     public List<LocationStaging> getAllStaging(){
         List<LocationStaging> approvalList = locStagingRepo.findAll();
         return approvalList;
 	}
 	
+	//Getting all records from Location_Staging having status as In Approval
 	@Override
     public List<LocationStaging> getAllApproval(){
         List<LocationStaging> approvalList = locStagingRepo.findByStatus("IN_APPROVAL");
         return approvalList;
 	}
+	
+	//Aproving or Rejecting all the records of status InApproval
 	@Override
 	public String approveRejectAll(List<LocationStaging> locations,String status){
 		
@@ -94,6 +98,7 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
         }  
     }
 	
+	//Approve or Reject a record
 	@Override
 	public String approveReject(LocationStaging location,String status){
     	LocationStaging locStaging = locStagingRepo.findById(location.getId());
@@ -115,6 +120,7 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
         }  
     }
 	
+	//Moving data to InApproval status
 	@Override
    	public String inApproval(List<LocationStaging> data){
     	LocationStaging locStaging = null;
@@ -131,13 +137,20 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
     	return "Sucessfully moved the data for Approval!";
     }
 	
+	//Edit Normalized Location of a record
 	@Override
    	public String updateNormalized(LocationStaging location){
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
         Date date = new Date();
-		if(!locStagingRepo.findByLocationName(location.getLocationName()).isEmpty())
+		if(locStagingRepo.findByLocationName(location.getLocationName())!=null)
 		{
         locStagingRepo.updateNormalizedLocation(location.getNormalizedLocation(),date,location.getLocationName());
+        System.out.println(locStagingRepo.findByLocationName(location.getLocationName()));
+        if(locStagingRepo.findByLocationName(location.getLocationName()).getStatus().equals("APPROVED") || locStagingRepo.findByLocationName(location.getLocationName()).getStatus().equals("REJECTED"))
+        {
+        	System.out.println("helloooooooooooo");
+        	locStagingRepo.updateStatus("IN_DRAFT", date,null,locStagingRepo.findByLocationName(location.getLocationName()).getId());
+        }
 
 		return "Successfully updated the Normalized Location!";
 		}
@@ -147,11 +160,12 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
 		}
     }
 	
+	//Creating a record in Location_Staging
 	@Override
 	public String uploadData (LocationStaging location){
 			String locationName = location.getLocationName();
 			String normalized = location.getNormalizedLocation();
-			if(locStagingRepo.findByLocationName(locationName).isEmpty())
+			if(locStagingRepo.findByLocationName(locationName)==null)
 			{
 				LocationStaging locStaging=new LocationStaging();
 				locStaging.setLocationName(locationName);
@@ -163,7 +177,8 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
 	            return "Details already existed!!";
 			}	
 	}
-
+	
+	//Parsing the Uploded File
 	 @Override
 	 public String parseExcelFile(MultipartFile file) {
 		int insertCount=0, ignoreCount=0;
@@ -185,7 +200,7 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
 	                Cell cell = cellIterator.next();
 	                int cellIndex = cell.getColumnIndex();
 	                
-                	if(cellIndex==0 && !locStagingRepo.findByLocationName(getCellValue(cell)).isEmpty()) {
+                	if(cellIndex==0 && locStagingRepo.findByLocationName(getCellValue(cell))!=null) {
                 		ignoreCount++;
                 		break;
                 	}
@@ -213,7 +228,7 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
 	        //System.out.println(insertCount+" "+ignoreCount);
 	        
 		 if(ignoreCount==0)
-			 return "Uploaded Successfully and the data is recorded!!";
+			 return "Uploaded Successfully and All "+insertCount+" records got inserted!!";
 		 else if(insertCount==0)
 			 return "All the records are already existed!!";
 		 else
@@ -289,6 +304,8 @@ public class LocationNormalizationServiceImpl implements LocationNormalizationSe
         return f;
 		
 	}
+	
+	//Download all the records from Location_Staging
 	@Override
     public ResponseEntity<byte[]> downloadFile() throws Exception{
     	File f=createFile();
